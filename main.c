@@ -29,6 +29,7 @@
 #include "config.h"
 #include "display.h"
 #include "display_kingmeter.h"
+#include "display_no2.h"
 #include "ACAcontrollerState.h"
 #include "BOdisplay.h"
 #include "ACAeeprom.h"
@@ -111,7 +112,7 @@ int main(void) {
 	PAS_init();
 	SPEED_init();
 	aca_setpoint_init();
-#if (defined (DISPLAY_TYPE) && defined (DISPLAY_TYPE_KINGMETER)) || defined DISPLAY_TYPE_KT_LCD3 || defined BLUOSEC
+#if (defined (DISPLAY_TYPE) && defined (DISPLAY_TYPE_KINGMETER)) || defined DISPLAY_TYPE_KT_LCD3 || defined BLUOSEC || defined DISPLAY_TYPE_NO2
 	display_init();
 #endif
 
@@ -147,7 +148,7 @@ int main(void) {
 		updateSpeeds();
 		updatePasStatus();
 
-#if (defined (DISPLAY_TYPE) && defined (DISPLAY_TYPE_KINGMETER)) || defined DISPLAY_TYPE_KT_LCD3 || defined BLUOSEC
+#if (defined (DISPLAY_TYPE) && defined (DISPLAY_TYPE_KINGMETER)) || defined DISPLAY_TYPE_KT_LCD3 || defined BLUOSEC || defined DISPLAY_TYPE_NO2
 		display_update();
 #endif
 
@@ -217,5 +218,4 @@ int main(void) {
 		}// end of slow loop
 	}// end of while(1) loop
 }
-
 

@@ -54,9 +54,10 @@ EXTRASRCS = \
 	PAS.c \
 	SPEED.c \
 	display.c \
+	display_no2.c \
 	display_kingmeter.c
 
-HEADERS = BOdisplay.h ACAcommons.h ACAsetPoint.h ACAcontrollerState.h ACAeeprom.h adc.h  brake.h  cruise_control.h  gpio.h  interrupts.h  main.h  motor.h  pwm.h  timers.h  uart.h  PAS.h  SPEED.h  
+HEADERS = BOdisplay.h ACAcommons.h ACAsetPoint.h ACAcontrollerState.h ACAeeprom.h adc.h  brake.h  cruise_control.h  gpio.h  interrupts.h  main.h  motor.h  pwm.h  timers.h  uart.h  PAS.h  SPEED.h display_no2.h
 
 # The list of .rel files can be derived from the list of their source files
 RELS = $(EXTRASRCS:.c=.rel)
@@ -107,4 +108,3 @@ clean:
 	$(ENTF) *.map
 	$(ENTF) *.adb 
 	echo "Done."
-
