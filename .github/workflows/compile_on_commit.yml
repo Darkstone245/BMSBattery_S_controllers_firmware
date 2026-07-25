@@ -5,6 +5,9 @@ on:
     branches: [ master, main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,18 +19,15 @@ jobs:
       - name: Install STM8 toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y sdcc binutils-sdcc
+          sudo apt-get install -y sdcc
 
       - name: Build firmware
-        run: make -f Makefile_linux clean all
+        run: make -f Makefile_linux clean all OBJCOPY=true SIZE=true
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: BMSBattery_S_build_${{ github.run_number }}
-          path: |
-            main.elf
-            main.bin
-            main.hex
+          path: main.elf
           if-no-files-found: error
           retention-days: 10
