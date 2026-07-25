@@ -16,10 +16,24 @@
 
 #define NO2_RX_FRAME_SIZE 20
 #define NO2_TX_FRAME_SIZE 14
+#define NO2_START_BYTE 0x02
+
+#define NO2_RX_ASSIST_INDEX 4
+#define NO2_RX_FLAGS_INDEX 5
+#define NO2_RX_SPEED_LIMIT_INDEX 12
+#define NO2_RX_CHECKSUM_INDEX (NO2_RX_FRAME_SIZE - 1)
+
+#define NO2_TX_ERROR_INDEX 3
+#define NO2_TX_FLAGS_INDEX 4
+#define NO2_TX_CURRENT_HIGH_INDEX 6
+#define NO2_TX_CURRENT_LOW_INDEX 7
+#define NO2_TX_WHEELTIME_HIGH_INDEX 8
+#define NO2_TX_WHEELTIME_LOW_INDEX 9
+#define NO2_TX_CHECKSUM_INDEX (NO2_TX_FRAME_SIZE - 1)
 
 static uint8_t ui8_no2_rx_buffer[NO2_RX_FRAME_SIZE];
 static uint8_t ui8_no2_rx_counter = 0;
-static uint8_t ui8_no2_tx_buffer[NO2_TX_FRAME_SIZE] = {0x02, 0x0E, 0x01, 0x00, 0x80, 0x00, 0x00, 0x2C, 0x00, 0xF9, 0x00, 0x00, 0xFF, 0x00};
+static uint8_t ui8_no2_tx_buffer[NO2_TX_FRAME_SIZE] = {NO2_START_BYTE, 0x0E, 0x01, 0x00, 0x80, 0x00, 0x00, 0x2C, 0x00, 0xF9, 0x00, 0x00, 0xFF, 0x00};
 
 static uint8_t no2_checksum(const uint8_t *buffer, uint8_t length) {
 	uint8_t i;
@@ -62,17 +76,25 @@ static uint16_t no2_get_current_deci_amp(void) {
 	return (uint16_t) ((((uint16_t) adc_delta) * 100U) / ui8_current_cal_a);
 }
 
+static uint8_t no2_frame_is_valid(const uint8_t *frame) {
+	if (frame[0] != NO2_START_BYTE) {
+		return 0;
+	}
+
+	return (uint8_t) (no2_checksum(frame, NO2_RX_FRAME_SIZE) == frame[NO2_RX_CHECKSUM_INDEX]);
+}
+
 static void no2_apply_rx_values(void) {
-	uint8_t assist_level = ui8_no2_rx_buffer[4] & 0x0F;
-	uint8_t headlight_on = (ui8_no2_rx_buffer[5] >> 5) & 0x01;
-	uint8_t push_assist = (ui8_no2_rx_buffer[5] >> 1) & 0x01;
-	uint8_t speed_limit_kph = ui8_no2_rx_buffer[12];
+	uint8_t assist_level = ui8_no2_rx_buffer[NO2_RX_ASSIST_INDEX] & 0x0F;
+	uint8_t headlight_on = (ui8_no2_rx_buffer[NO2_RX_FLAGS_INDEX] >> 5) & 0x01;
+	uint8_t push_assist = (ui8_no2_rx_buffer[NO2_RX_FLAGS_INDEX] >> 1) & 0x01;
+	uint8_t speed_limit_kph = ui8_no2_rx_buffer[NO2_RX_SPEED_LIMIT_INDEX];
 
 	ui8_assistlevel_global = assist_level + 80;
 	ui8_walk_assist = push_assist;
 	light_stat = (light_stat & ~128) | (headlight_on << 7);
 
-	if (speed_limit_kph != ui8_speedlimit_kph) {
+	if ((speed_limit_kph >= 10) && (speed_limit_kph <= 99) && (speed_limit_kph != ui8_speedlimit_kph)) {
 		ui8_speedlimit_kph = speed_limit_kph;
 		eeprom_write(OFFSET_MAX_SPEED_DEFAULT, speed_limit_kph);
 	}
@@ -83,13 +105,13 @@ static void no2_prepare_tx_values(void) {
 	uint16_t battery_current_deci_amp = no2_get_current_deci_amp();
 	uint8_t i;
 
-	ui8_no2_tx_buffer[3] = 0; // error code
-	ui8_no2_tx_buffer[4] = (uint8_t) (brake_is_set() ? (1U << 5) : 0U);
-	ui8_no2_tx_buffer[6] = (uint8_t) (battery_current_deci_amp >> 8);
-	ui8_no2_tx_buffer[7] = (uint8_t) (battery_current_deci_amp & 0xFF);
-	ui8_no2_tx_buffer[8] = (uint8_t) (wheel_time_ms >> 8);
-	ui8_no2_tx_buffer[9] = (uint8_t) (wheel_time_ms & 0xFF);
-	ui8_no2_tx_buffer[13] = no2_checksum(ui8_no2_tx_buffer, NO2_TX_FRAME_SIZE);
+	ui8_no2_tx_buffer[NO2_TX_ERROR_INDEX] = 0;
+	ui8_no2_tx_buffer[NO2_TX_FLAGS_INDEX] = (uint8_t) (brake_is_set() ? (1U << 5) : 0U);
+	ui8_no2_tx_buffer[NO2_TX_CURRENT_HIGH_INDEX] = (uint8_t) (battery_current_deci_amp >> 8);
+	ui8_no2_tx_buffer[NO2_TX_CURRENT_LOW_INDEX] = (uint8_t) (battery_current_deci_amp & 0xFF);
+	ui8_no2_tx_buffer[NO2_TX_WHEELTIME_HIGH_INDEX] = (uint8_t) (wheel_time_ms >> 8);
+	ui8_no2_tx_buffer[NO2_TX_WHEELTIME_LOW_INDEX] = (uint8_t) (wheel_time_ms & 0xFF);
+	ui8_no2_tx_buffer[NO2_TX_CHECKSUM_INDEX] = no2_checksum(ui8_no2_tx_buffer, NO2_TX_FRAME_SIZE);
 
 	for (i = 0; i < NO2_TX_FRAME_SIZE; i++) {
 		uart_put_buffered(ui8_no2_tx_buffer[i]);
@@ -101,24 +123,26 @@ void display_init(void) {
 }
 
 void display_update(void) {
-	uart_fill_rx_packet_buffer(ui8_no2_rx_buffer, NO2_RX_FRAME_SIZE, &ui8_no2_rx_counter);
+	while (byte_avail_at_position() != UART_EMPTY_INDICATOR) {
+		uint8_t rx_byte = uart_get_buffered();
 
-	if (ui8_no2_rx_counter < NO2_RX_FRAME_SIZE) {
-		return;
+		if ((ui8_no2_rx_counter == 0) && (rx_byte != NO2_START_BYTE)) {
+			continue;
+		}
+
+		ui8_no2_rx_buffer[ui8_no2_rx_counter++] = rx_byte;
+
+		if (ui8_no2_rx_counter >= NO2_RX_FRAME_SIZE) {
+			ui8_no2_rx_counter = 0;
+
+			if (!no2_frame_is_valid(ui8_no2_rx_buffer)) {
+				continue;
+			}
+
+			no2_apply_rx_values();
+			no2_prepare_tx_values();
+		}
 	}
-
-	ui8_no2_rx_counter = 0;
-
-	if (ui8_no2_rx_buffer[0] != 0x02) {
-		return;
-	}
-
-	if (no2_checksum(ui8_no2_rx_buffer, NO2_RX_FRAME_SIZE) != ui8_no2_rx_buffer[NO2_RX_FRAME_SIZE - 1]) {
-		return;
-	}
-
-	no2_apply_rx_values();
-	no2_prepare_tx_values();
 }
 
 #endif
