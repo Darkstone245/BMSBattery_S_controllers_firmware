@@ -1,0 +1,33 @@
+name: Compile on Commit
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install STM8 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sdcc binutils-sdcc
+
+      - name: Build firmware
+        run: make -f Makefile_linux clean all
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BMSBattery_S_build_${{ github.run_number }}
+          path: |
+            main.elf
+            main.bin
+            main.hex
+          if-no-files-found: error
+          retention-days: 10
