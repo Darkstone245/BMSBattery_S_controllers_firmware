@@ -9,9 +9,9 @@
 #define CONFIG_H_
 
 #define NUMBER_OF_PAS_MAGS 12
-#define limit 100
+#define limit 28
 #define timeout 3125
-#define wheel_circumference 2182L
+#define wheel_circumference 2230L
 #define limit_without_pas 20
 #define ADC_THROTTLE_MIN_VALUE 43
 #define ADC_THROTTLE_MAX_VALUE 182
