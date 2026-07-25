@@ -42,6 +42,7 @@
 #define ANGLE_2_120 84
 #define ANGLE_3_180 129
 #define DISPLAY_TYPE_KT_LCD3
+// #define DISPLAY_TYPE_NO2 // LishuiFOC UART2 "No.2" / S866 display protocol
 #define ANGLE_1_240 167
 #define ANGLE_5_300 212
 #define TQS_CALIB 0.0
