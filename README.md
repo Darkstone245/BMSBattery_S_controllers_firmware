@@ -22,6 +22,7 @@ This firmware replaces the closed source one on Kunteng sine wave controllers. I
 ### What works  
 
 * Sine wave control with simplified FOC  
+* Optional startup hall-angle autodetect routine (compile-time option `AUTODETECT`)
 * Overvoltage (regeneration) and undervoltage protection
 * Motor stop while braking
 * Driving modes:  

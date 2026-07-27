@@ -93,6 +93,11 @@ void UART2_IRQHandler(void) __interrupt(UART2_IRQHANDLER);
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(void) {
+#if (AUTODETECT == 1)
+	uint8_t ui8_autodetect_counter = 0;
+	uint16_t ui16_autodetect_delay = 0;
+#endif
+
 	//set clock at the max 16MHz
 	CLK_HSIPrescalerConfig(CLK_PRESCALER_HSIDIV1);
 
@@ -133,6 +138,21 @@ int main(void) {
 #endif
 
 	hall_sensors_read_and_action(); // needed to start the motor
+
+#if (AUTODETECT == 1)
+	while (brake_is_set() && (ui8_adc_read_throttle() > (ui8_throttle_min_range + 20))) {
+		ui8_autodetect_counter++;
+		if (ui8_autodetect_counter >= 35) {
+			autodetect();
+			break;
+		}
+
+		for (ui16_autodetect_delay = 0; ui16_autodetect_delay < 60000; ui16_autodetect_delay++) {
+			// intentional busy wait
+		}
+	}
+#endif
+
 	//printf("Back in Main.c\n");
 
 	for (a = 0; a < NUMBER_OF_PAS_MAGS; a++) {// array init
@@ -218,4 +238,3 @@ int main(void) {
 		}// end of slow loop
 	}// end of while(1) loop
 }
-

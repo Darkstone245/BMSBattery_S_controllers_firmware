@@ -20,9 +20,13 @@
 #include "stm8s.h"
 #include "stm8s_itc.h"
 #include "stm8s_gpio.h"
+#include "stm8s_tim1.h"
 #include "config.h"
 #include "gpio.h"
 #include "adc.h"
+#include "pwm.h"
+#include "motor.h"
+#include "ACAeeprom.h"
 #include "ACAcommons.h"
 #include "ACAcontrollerState.h"
 
@@ -152,6 +156,119 @@ uint8_t readAndClearSignal(uint8_t signal) {
 void initErpsRatio(void) {
 	//if (readAndClearSignal(SIGNAL_SPEEDLIMIT_CHANGED) == 1) 
 	ui16_speed_kph_to_erps_ratio = (uint16_t) ((float) ui8_gear_ratio * 1000000.0 / ((float) wheel_circumference * 36.0));
+}
+
+static void autodetect_delay(volatile uint16_t delay_loops) {
+	while (delay_loops > 0) {
+		delay_loops--;
+	}
+}
+
+void autodetect(void) {
+	uint8_t hall_state;
+	uint8_t hall_state_last;
+	uint8_t hall_mask;
+	uint8_t step;
+	uint8_t ui8_old_motor_angle;
+	uint8_t ui8_old_position_correction;
+	uint8_t ui8_old_possible_motor_state;
+	uint8_t ui8_detected_hall_angle4_0;
+	uint8_t ui8_detected_hall_angle6_60;
+	uint8_t ui8_detected_hall_angle2_120;
+	uint8_t ui8_detected_hall_angle3_180;
+	uint8_t ui8_detected_hall_angle1_240;
+	uint8_t ui8_detected_hall_angle5_300;
+
+	ui8_old_motor_angle = ui8_s_motor_angle;
+	ui8_old_position_correction = ui8_position_correction_value;
+	ui8_old_possible_motor_state = ui8_possible_motor_state;
+
+	ui8_detected_hall_angle4_0 = ui8_s_hall_angle4_0;
+	ui8_detected_hall_angle6_60 = ui8_s_hall_angle6_60;
+	ui8_detected_hall_angle2_120 = ui8_s_hall_angle2_120;
+	ui8_detected_hall_angle3_180 = ui8_s_hall_angle3_180;
+	ui8_detected_hall_angle1_240 = ui8_s_hall_angle1_240;
+	ui8_detected_hall_angle5_300 = ui8_s_hall_angle5_300;
+
+	ui8_position_correction_value = 127;
+	ui8_possible_motor_state = MOTOR_STATE_RUNNING_INTERPOLATION_360;
+	ui8_s_motor_angle = 0;
+	ui16_setpoint = 0;
+	pwm_set_duty_cycle(24);
+	TIM1_CtrlPWMOutputs(ENABLE);
+	autodetect_delay(45000);
+
+	hall_mask = 0;
+	hall_state_last = (GPIO_ReadInputData(HALL_SENSORS__PORT) & (HALL_SENSORS_MASK));
+
+	for (step = 0; step < 255; step++) {
+		ui8_s_motor_angle = step;
+		autodetect_delay(1200);
+		hall_state = (GPIO_ReadInputData(HALL_SENSORS__PORT) & (HALL_SENSORS_MASK));
+
+		if (hall_state == hall_state_last) {
+			continue;
+		}
+
+		hall_state_last = hall_state;
+
+		switch (hall_state) {
+		case 4:
+			ui8_detected_hall_angle4_0 = step;
+			hall_mask |= 1;
+			break;
+		case 6:
+			ui8_detected_hall_angle6_60 = step;
+			hall_mask |= 2;
+			break;
+		case 2:
+			ui8_detected_hall_angle2_120 = step;
+			hall_mask |= 4;
+			break;
+		case 3:
+			ui8_detected_hall_angle3_180 = step;
+			hall_mask |= 8;
+			break;
+		case 1:
+			ui8_detected_hall_angle1_240 = step;
+			hall_mask |= 16;
+			break;
+		case 5:
+			ui8_detected_hall_angle5_300 = step;
+			hall_mask |= 32;
+			break;
+		default:
+			break;
+		}
+
+		if (hall_mask == 63) {
+			break;
+		}
+	}
+
+	pwm_set_duty_cycle(0);
+	autodetect_delay(60000);
+	TIM1_CtrlPWMOutputs(DISABLE);
+
+	if (hall_mask == 63) {
+		ui8_s_hall_angle4_0 = ui8_detected_hall_angle4_0;
+		ui8_s_hall_angle6_60 = ui8_detected_hall_angle6_60;
+		ui8_s_hall_angle2_120 = ui8_detected_hall_angle2_120;
+		ui8_s_hall_angle3_180 = ui8_detected_hall_angle3_180;
+		ui8_s_hall_angle1_240 = ui8_detected_hall_angle1_240;
+		ui8_s_hall_angle5_300 = ui8_detected_hall_angle5_300;
+
+		eeprom_write(OFFSET_HALL_ANGLE_4_0, ui8_s_hall_angle4_0);
+		eeprom_write(OFFSET_HALL_ANGLE_6_60, ui8_s_hall_angle6_60);
+		eeprom_write(OFFSET_HALL_ANGLE_2_120, ui8_s_hall_angle2_120);
+		eeprom_write(OFFSET_HALL_ANGLE_3_180, ui8_s_hall_angle3_180);
+		eeprom_write(OFFSET_HALL_ANGLE_1_240, ui8_s_hall_angle1_240);
+		eeprom_write(OFFSET_HALL_ANGLE_5_300, ui8_s_hall_angle5_300);
+	}
+
+	ui8_s_motor_angle = ui8_old_motor_angle;
+	ui8_position_correction_value = ui8_old_position_correction;
+	ui8_possible_motor_state = ui8_old_possible_motor_state;
 }
 
 void updateHallOrder(uint8_t hall_sensors) {

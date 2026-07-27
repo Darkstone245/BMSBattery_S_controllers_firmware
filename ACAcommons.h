@@ -38,6 +38,6 @@ void updateLight(void);
 void updatePasStatus(void);
 void checkPasInActivity(void);
 void updateRequestedTorque(void);
+void autodetect(void);
 
 #endif /* ACACOMMONS_H */
-
